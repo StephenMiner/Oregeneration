@@ -1,0 +1,18 @@
+main: me.stephenminer.oreRegeneration.OreRegeneration
+author: StephenMiner(Meep)
+version: 1.8.6
+name: OreRegeneration
+description: Ore Regen
+api-version: 1.13
+commands:
+  regionwand:
+  node:
+  showborder:
+  deleteregion:
+  reloadOreGen:
+  editMode:
+  regionList:
+  region:
+    aliases: [oreregion]
+  dynamicregionwand:
+  migrateregion:

@@ -1,0 +1,22 @@
+blocks:
+  DIRT:
+    drops:
+      DIAMOND:
+        name: "&2Test Item"
+        lore:
+          - "&6Optional line"
+          - "&2Second line"
+        max-drop: 5
+        min-drop: 1
+    replenishTime: 100
+regions:
+  region:
+    DIRT:
+      drops:
+        DIAMOND:
+          max-drop: 5
+          min-drop: 1
+          name: "&2Test Item"
+          lore:
+            - "&6Optional Line"
+            - "You can delete this btw"
