@@ -281,12 +281,7 @@ public class DynamicRegion extends Region {
     public Material getReplaceWith(Material key) {
         if (plugin.DynamicRegionFile.getConfig().contains(regionPath + ".canBreak." + key.name() + ".replaceWith")) {
             List<String> entries = plugin.DynamicRegionFile.getConfig().getStringList(regionPath + ".canBreak." + key.name() + ".replaceWith");
-            List<Material> materials = new ArrayList<>();
-            for (String str : entries) {
-                materials.add(translate(str));
-            }
-            if (materials.size() > 0)
-                return materials.get(random.nextInt(materials.size()));
+            return this.blockEntryMethod(entries);
         }
         return Material.AIR;
     }

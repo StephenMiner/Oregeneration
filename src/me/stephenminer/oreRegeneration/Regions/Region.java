@@ -346,12 +346,7 @@ public class Region {
     public Material getReplaceWith(Material key) {
         if (plugin.RegionStorageFile.getConfig().contains(regionPath + ".canBreak." + key.name() + ".replaceWith")) {
             List<String> entries = plugin.RegionStorageFile.getConfig().getStringList(regionPath + ".canBreak." + key.name() + ".replaceWith");
-            List<Material> materials = new ArrayList<>();
-            for (String str : entries) {
-                materials.add(translate(str));
-            }
-            if (materials.size() > 0)
-                return materials.get(random.nextInt(materials.size()));
+            return blockEntryMethod(entries);
         }
         return Material.AIR;
     }
@@ -359,13 +354,47 @@ public class Region {
     public Material getReplenishAs(Material key) {
         if (plugin.RegionStorageFile.getConfig().contains(regionPath + ".canBreak." + key.name() + ".replenishAs")) {
             List<String> entries = plugin.RegionStorageFile.getConfig().getStringList(regionPath + ".canBreak." + key.name() + ".replenishAs");
-            List<Material> materials = new ArrayList<>();
-            for (String str : entries) {
-                materials.add(translate(str));
-            }
-            return materials.get(random.nextInt(materials.size()));
+            return blockEntryMethod(entries);
         }
         return key;
+    }
+
+    /**
+     *
+     * @param blockTranslate list of Strings either as Materials or BlockEntries (Preferably BlockEntries
+     * @return randomly selected material from list
+     */
+    protected Material blockEntryMethod(List<String> blockTranslate){
+        int passed = 0;
+        List<BlockEntry> blocks = new ArrayList<>();
+        for (String str : blockTranslate){
+            try{
+                BlockEntry entry = new BlockEntry(str);
+                blocks.add(entry);
+                passed++;
+            }catch (Exception e){
+                plugin.getLogger().warning("Error loading BlockEntry for " + str);
+            }
+        }
+        if (passed < 1) {
+            plugin.getLogger().warning("< 1 Block Entries loaded, attempting to load basic Materials...");
+            return failsafe(blockTranslate);
+        }
+        BlockRoller roller = new BlockRoller(blocks);
+        return roller.makeRoll().mat();
+    }
+
+    /**
+     *
+     * @param matTranslate String List containing Material Strings ONLY, only called if no BlockEntries can be loaded
+     * @return
+     */
+    protected Material failsafe(List<String> matTranslate){
+        List<Material> materials = new ArrayList<>();
+        for (String str : matTranslate) {
+            materials.add(translate(str));
+        }
+        return materials.get(random.nextInt(materials.size()));
     }
 
 

@@ -6,11 +6,24 @@ import org.bukkit.Raid;
 import java.util.Random;
 
 public class BlockEntry {
-    private final double weight;
+    /**
+     * Some integer between 0-1000
+     */
+    private final int weight;
     private final Material mat;
 
 
-    public BlockEntry(Material mat, double weight){
+    public BlockEntry(Material mat, int weight){
+        this.mat = mat;
+        this.weight = weight;
+    }
+
+    public BlockEntry(String str){
+        String[] split = str.split(",");
+        Material mat = Material.matchMaterial(split[0]);
+        int weight = 1;
+        if (split.length > 1)
+            weight = Integer.parseInt(split[1]);
         this.mat = mat;
         this.weight = weight;
     }
@@ -22,12 +35,6 @@ public class BlockEntry {
         return mat.name() + "," + weight;
     }
 
-    public static BlockEntry fromString(String str){
-        String[] split = str.split(",");
-        Material mat = Material.matchMaterial(split[0]);
-        double weight = 1;
-        if (split.length > 1)
-         weight = Integer.parseInt(split[1]);
-        return new BlockEntry(mat, weight);
-    }
+    public Material mat(){ return mat; }
+    public int weight(){ return weight; }
 }
