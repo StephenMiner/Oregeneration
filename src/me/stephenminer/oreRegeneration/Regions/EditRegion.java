@@ -13,6 +13,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class EditRegion {
     private String region;
@@ -147,16 +148,12 @@ public class EditRegion {
     }
     public Inventory replaceWithMenu(Material mat){
         Items items = new Items();
-        List<ItemStack> matList = new ArrayList<>();
+
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.GOLD + mat.toString().toLowerCase().replace("_"," ") +
                 "Will be replaced by:");
-        for (String s : plugin.RegionStorageFile.getConfig().getStringList("regions." + region + ".canBreak." + mat.toString() + ".replaceWith")){
-            if (Material.matchMaterial(s) == null)
-                continue;
-            ItemStack item = new ItemStack(Material.matchMaterial(s));
-            matList.add(item);
-        }
-        inv.setContents(matList.toArray(new ItemStack[0]));
+        List<String> replaceWith = plugin.RegionStorageFile.getConfig().getStringList("regions." + region + ".canBreak." + mat.toString() + ".replaceWith");
+        ItemStack[] itemArray = generateItems(replaceWith);
+        inv.setContents(itemArray);
         for (int i = 45; i <= 53; i++){
             inv.setItem(i, filler());
         }
@@ -192,14 +189,9 @@ public class EditRegion {
     public Inventory replenishAs(Material mat){
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.GOLD + "Replenish As");
         Items items = new Items();
-        List<ItemStack> matList = new ArrayList<>();
-        for (String s : plugin.RegionStorageFile.getConfig().getStringList("regions." + region + ".canBreak." + mat.toString() + ".replenishAs")){
-            if (Material.matchMaterial(s) == null)
-                continue;
-            ItemStack item = new ItemStack(Material.matchMaterial(s));
-            matList.add(item);
-        }
-        inv.setContents(matList.toArray(new ItemStack[0]));
+        List<String> stringEntries = plugin.RegionStorageFile.getConfig().getStringList("regions." + region + ".canBreak." + mat.toString() + ".replenishAs");
+        ItemStack[] itemArray = generateItems(stringEntries);
+        inv.setContents(itemArray);
         for (int i = 45; i <= 53; i++){
             inv.setItem(i, filler());
         }
@@ -207,20 +199,63 @@ public class EditRegion {
         return inv;
     }
 
-    public void saveReplenishAs(ItemStack[] contents, Material mat){
-        List<String> mats = new ArrayList<>();
-        for (ItemStack stacks : contents){
-            if (stacks == null){
-                continue;
+    /**
+     *
+     * @param strings List of strings presumably as BlockEntries
+     * @return list of items using materials found in BlockEntries and weight written in lore
+     */
+    private ItemStack[] generateItems(List<String> strings){
+        ItemStack[] items = new ItemStack[strings.size()];
+        int passed = 0;
+        for (int i = 0; i < strings.size(); i++){
+            String entry = strings.get(i);
+            try {
+                BlockEntry blockEntry = new BlockEntry(entry);
+                ItemStack item = new ItemStack(blockEntry.mat());
+                ItemMeta meta = item.getItemMeta();
+                List<String> lore = new ArrayList<>();
+                lore.add("weight: " + blockEntry.weight());
+                meta.setLore(lore);
+                item.setItemMeta(meta);
+                items[i] = item;
+                passed++;
+            }catch (Exception e){
+                e.printStackTrace();
             }
-            mats.add(stacks.getType().toString());
         }
-        if (mats.size() >0)
-            plugin.RegionStorageFile.getConfig().set("regions." + region + ".canBreak." + mat.toString() + ".replenishAs", mats);
+        if (passed == 0) return failsafe(strings);
+        else return items;
+
+
+    }
+
+    /**
+     * Should only be used IN asBlockEntries()
+     * @param strings List of strings of presumably materials
+     * @return List of items using materials found in strings
+     */
+    private ItemStack[] failsafe(List<String> strings){
+        ItemStack[] items = new ItemStack[strings.size()];
+        int index = 0;
+        for (String s : strings){
+            if (Material.matchMaterial(s) == null)
+                continue;
+            ItemStack item = new ItemStack(Material.matchMaterial(s));
+            items[index] = item;
+            index++;
+        }
+        return items;
+    }
+
+
+
+    public void saveReplenishAs(ItemStack[] contents, Material mat){
+        List<BlockEntry> entries = generateFromItems(contents);
+        if (entries.size() > 0)
+            plugin.RegionStorageFile.getConfig().set("regions." + region + ".canBreak." + mat.toString() + ".replenishAs", entries.stream().map(BlockEntry::toString).collect(Collectors.toList()));
         else plugin.RegionStorageFile.getConfig().set("regions." + region + ".canBreak." + mat.toString() + ".replenishAs", null);
         plugin.RegionStorageFile.saveConfig();
         Bukkit.getConsoleSender().sendMessage(ChatColor.GREEN + "Updated replenish As in " + region+"!");
-        plugin.RegionStorageFile.saveConfig();
     }
 
     public void saveCanBreak(ItemStack[] contents){
@@ -247,19 +282,45 @@ public class EditRegion {
         plugin.RegionStorageFile.saveConfig();
     }
     public void saveReplaceWith(ItemStack[] contents, Material mat){
-        List<String> mats = new ArrayList<>();
-        for (ItemStack stacks : contents){
-            if (stacks == null){
-                continue;
-            }
-            mats.add(stacks.getType().toString());
-        }
-        if (mats.size()>0)
-            plugin.RegionStorageFile.getConfig().set("regions." + region + ".canBreak." + mat.toString() + ".replaceWith", mats);
-        else plugin.RegionStorageFile.getConfig().set("regions." + region + ".canBreak." + mat.toString() + ".replaceWith", mats);
+        List<BlockEntry> entries = generateFromItems(contents);
+        plugin.RegionStorageFile.getConfig().set("regions." + region + ".canBreak." + mat.toString() + ".replaceWith", entries.stream().map(BlockEntry::toString).collect(Collectors.toList()));
         plugin.RegionStorageFile.saveConfig();
         Bukkit.getConsoleSender().sendMessage(ChatColor.GREEN + "Updated replaceWith in " + region+"!");
-        plugin.RegionStorageFile.saveConfig();
+    }
+
+
+    private List<BlockEntry> generateFromItems(ItemStack[] contents){
+        List<BlockEntry> blockEntries = new ArrayList<>();
+        for (ItemStack item : contents){
+            if (item == null) continue;
+            int weight = readWeight(item);
+            BlockEntry entry = new BlockEntry(item.getType(),weight);
+            blockEntries.add(entry);
+        }
+        return blockEntries;
+    }
+
+    private int readWeight(ItemStack item){
+        int weight = 50;
+        if (!item.hasItemMeta() || !item.getItemMeta().hasLore()) return weight;
+        List<String> lore = item.getItemMeta().getLore();
+        String sNum = null;
+        for (String entry : lore){
+            if (entry.contains("weight: ")) {
+                sNum = ChatColor.stripColor(entry.replace("weight: ",""));
+                break;
+            }
+        }
+        if (sNum == null) return weight;
+        else weight = Integer.parseInt(sNum);
+        return weight;
+    }
+
+
+
+    public enum ChanceType{
+        REPLACE_WITH,
+        REPLACE_AS
     }
 
 

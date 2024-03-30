@@ -32,6 +32,7 @@ public class Region {
     protected boolean editmode;
     protected boolean outline;
     protected boolean actionBar;
+    protected boolean dynamic;
     protected World world;
 
     protected Location loc1;
@@ -394,7 +395,9 @@ public class Region {
         for (String str : matTranslate) {
             materials.add(translate(str));
         }
-        return materials.get(random.nextInt(materials.size()));
+        if (materials.size() > 0)
+            return materials.get(random.nextInt(materials.size()));
+        else return Material.AIR;
     }
 
 
@@ -600,6 +603,8 @@ public class Region {
     public World getWorld(){
         return world;
     }
+
+    public boolean dynamic(){ return dynamic; }
 
 
 }

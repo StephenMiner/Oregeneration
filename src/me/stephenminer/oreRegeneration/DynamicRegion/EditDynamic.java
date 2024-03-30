@@ -1,7 +1,9 @@
 package me.stephenminer.oreRegeneration.DynamicRegion;
 
+import jdk.nashorn.internal.ir.Block;
 import me.stephenminer.oreRegeneration.Items.Items;
 import me.stephenminer.oreRegeneration.OreRegeneration;
+import me.stephenminer.oreRegeneration.Regions.BlockEntry;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -12,6 +14,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class EditDynamic {
     private String region;
@@ -145,16 +148,16 @@ public class EditDynamic {
     }
     public Inventory replaceWithMenu(Material mat){
         Items items = new Items();
-        List<ItemStack> matList = new ArrayList<>();
         Inventory inv = Bukkit.createInventory(null, 54, ChatColor.GOLD + "[dynamic] " + mat.toString().toLowerCase().replace("_"," ") +
                 "Will be replaced by:");
-        for (String s : plugin.DynamicRegionFile.getConfig().getStringList("regions." + region + ".canBreak." + mat.toString() + ".replaceWith")){
-            if (Material.matchMaterial(s) == null)
-                continue;
-            ItemStack item = new ItemStack(Material.matchMaterial(s));
-            matList.add(item);
+        List<String> replaceWith = plugin.DynamicRegionFile.getConfig().getStringList("regions." + region + ".canBreak." + mat.name() + ".replaceWith");
+        ItemStack[] itemArray = generateItems(replaceWith);
+        inv.setContents(itemArray);
+        for (int i = 45; i <= 53; i++){
+            inv.setItem(i, filler());
         }
-        inv.setContents(matList.toArray(new ItemStack[0]));
+        inv.setItem(49, items.back());
+        inv.setContents(itemArray);
         for (int i = 45; i <= 53; i++){
             inv.setItem(i, filler());
         }
@@ -222,6 +225,54 @@ public class EditDynamic {
         return inv;
     }
 
+    /**
+     *
+     * @param strings List of strings presumably as BlockEntries
+     * @return list of items using materials found in BlockEntries and weight written in lore
+     */
+    private ItemStack[] generateItems(List<String> strings){
+        ItemStack[] items = new ItemStack[strings.size()];
+        int passed = 0;
+        for (int i = 0; i < strings.size(); i++){
+            String entry = strings.get(i);
+            try {
+                BlockEntry blockEntry = new BlockEntry(entry);
+                ItemStack item = new ItemStack(blockEntry.mat());
+                ItemMeta meta = item.getItemMeta();
+                List<String> lore = new ArrayList<>();
+                lore.add("weight: " + blockEntry.weight());
+                meta.setLore(lore);
+                item.setItemMeta(meta);
+                items[i] = item;
+                passed++;
+            }catch (Exception e){
+                e.printStackTrace();
+            }
+        }
+        if (passed == 0) return failsafe(strings);
+        else return items;
+
+
+    }
+
+    /**
+     * Should only be used IN asBlockEntries()
+     * @param strings List of strings of presumably materials
+     * @return List of items using materials found in strings
+     */
+    private ItemStack[] failsafe(List<String> strings){
+        ItemStack[] items = new ItemStack[strings.size()];
+        int index = 0;
+        for (String s : strings){
+            if (Material.matchMaterial(s) == null)
+                continue;
+            ItemStack item = new ItemStack(Material.matchMaterial(s));
+            items[index] = item;
+            index++;
+        }
+        return items;
+    }
+
 
     public void saveCanBreak(ItemStack[] contents){
         List<String> mats = new ArrayList<>();
@@ -231,7 +282,6 @@ public class EditDynamic {
             }
             if (!plugin.DynamicRegionFile.getConfig().contains("regions." + region + ".canBreak." + stacks.getType().toString())){
                 addCanBreak(stacks.getType().toString());
-
             }
             mats.add(stacks.getType().toString());
         }
@@ -246,19 +296,9 @@ public class EditDynamic {
         plugin.DynamicRegionFile.saveConfig();
     }
     public void saveReplaceWith(ItemStack[] contents, Material mat){
-        List<String> mats = new ArrayList<>();
-        for (ItemStack stacks : contents){
-            if (stacks == null){
-                Bukkit.getConsoleSender().sendMessage("Null?");
-                continue;
-            }
-            if (stacks.getType().equals(Material.AIR ) || stacks.getType().equals(Material.CAVE_AIR) || stacks.getType().equals(Material.VOID_AIR))
-                continue;
-            if (stacks.getType().toString() == null)
-                continue;
-            mats.add(stacks.getType().toString());
-        }
-        plugin.DynamicRegionFile.getConfig().set("regions." + region + ".canBreak." + mat.toString() + ".replaceWith", mats);
+        List<BlockEntry> entries = generateFromItems(contents);
+
+        plugin.DynamicRegionFile.getConfig().set("regions." + region + ".canBreak." + mat.toString() + ".replaceWith", entries.stream().map(BlockEntry::toString).collect(Collectors.toList()));
         plugin.DynamicRegionFile.saveConfig();
         Bukkit.getConsoleSender().sendMessage(ChatColor.GREEN + "Updated replaceWith in " + region+"!");
         plugin.DynamicRegionFile.saveConfig();
@@ -276,6 +316,32 @@ public class EditDynamic {
         plugin.DynamicRegionFile.saveConfig();
     }
 
+    private List<BlockEntry> generateFromItems(ItemStack[] contents){
+        List<BlockEntry> blockEntries = new ArrayList<>();
+        for (ItemStack item : contents){
+            if (item == null) continue;
+            int weight = readWeight(item);
+            BlockEntry entry = new BlockEntry(item.getType(),weight);
+            blockEntries.add(entry);
+        }
+        return blockEntries;
+    }
+
+    private int readWeight(ItemStack item){
+        int weight = 50;
+        if (!item.hasItemMeta() || !item.getItemMeta().hasLore()) return weight;
+        List<String> lore = item.getItemMeta().getLore();
+        String sNum = null;
+        for (String entry : lore){
+            if (entry.contains("weight: ")) {
+                sNum = ChatColor.stripColor(entry.replace("weight: ",""));
+                break;
+            }
+        }
+        if (sNum == null) return weight;
+        else weight = Integer.parseInt(sNum);
+        return weight;
+    }
 
 
     public void saveReplenishTime(int i, Material mat){

@@ -5,12 +5,15 @@ import me.stephenminer.oreRegeneration.OreRegeneration;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.craftbukkit.libs.it.unimi.dsi.fastutil.Hash;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -25,16 +28,18 @@ public class AddOptions implements Listener{
     private OreRegeneration plugin;
     public AddOptions(OreRegeneration plugin){
         this.plugin = plugin;
+        matMap = new HashMap<>();
+        editors = new HashMap<>();
     }
 
     public static HashMap<UUID, String> string = new HashMap<UUID, String>();
 
-    public HashMap<UUID, Material> matMap = new HashMap<UUID, Material>();
+    public HashMap<UUID, Material> matMap;
+    private HashMap<UUID, ChanceEditor> editors;
 
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.LOWEST)
     public void editMenu(InventoryClickEvent event){
-        Items i = new Items();
         Player p = (Player) event.getWhoClicked();
         String s = event.getView().getTitle();
         if (s.contains("Dynamic") || s.contains("dynamic") || s.contains("[dynamic]"))
@@ -43,52 +48,56 @@ public class AddOptions implements Listener{
             event.setCancelled(true);
             if (event.getCurrentItem() == null)
                 return;
-            if (event.getCurrentItem().getType().equals(Material.BARRIER)){
-                p.closeInventory();
-                string.remove(p.getUniqueId());
-            }
-            EditRegion er = new EditRegion(plugin, string.get(p.getUniqueId()));
-            if (event.getCurrentItem().getType().equals(Material.DIAMOND_PICKAXE)){
-                p.openInventory(er.canBreakMenu());
-                return;
-            }
-            if (event.getCurrentItem().getType().equals(Material.DIAMOND_SWORD)){
-                er.addPvp(p, !plugin.RegionStorageFile.getConfig().getBoolean("regions." + string.get(p.getUniqueId()) + ".pvp"));
-                event.getView().getTopInventory().setItem(3, i.canPvp(string.get(p.getUniqueId()), plugin.RegionStorageFile.getConfig().getBoolean("regions." + string.get(p.getUniqueId()) + ".pvp")));
-                return;
-            }
-            if (event.getCurrentItem().getType().equals(Material.CHICKEN_SPAWN_EGG)){
-                addMobSpawn(p, string.get(p.getUniqueId()), !plugin.RegionStorageFile.getConfig().getBoolean("regions." + string.get(p.getUniqueId()) + ".mobs-spawn"));
-                event.getView().getTopInventory().setItem(2, i.canSpawn(string.get(p.getUniqueId()), plugin.RegionStorageFile.getConfig().getBoolean("regions." + string.get(p.getUniqueId()) + ".mobs-spawn")));
-            }
-            if (event.getCurrentItem().getType().equals(Material.HOPPER)){
-                er.setDropOnPlayer(!plugin.RegionStorageFile.getConfig().getBoolean("regions." + AddOptions.string.get(p.getUniqueId()) + ".dropOnPlayer"));
-                new BukkitRunnable(){
-                    @Override
-                    public void run(){
-                        event.getView().getTopInventory().setItem(4, i.dropOnPlayer(plugin.RegionStorageFile.getConfig().getBoolean("regions." + AddOptions.string.get(p.getUniqueId()) + ".dropOnPlayer")));
-                    }
-                }.runTaskLater(plugin, 2);
-            }
-            if (event.getCurrentItem().getType().equals(Material.CHEST)){
-                er.setDropInInventory(!plugin.RegionStorageFile.getConfig().getBoolean("regions." + AddOptions.string.get(p.getUniqueId()) + ".dropInInventory"));
-                new BukkitRunnable(){
-                    @Override
-                    public void run(){
-                        event.getView().getTopInventory().setItem(1, i.dropInInventory(plugin.RegionStorageFile.getConfig().getBoolean("regions." + AddOptions.string.get(p.getUniqueId()) + ".dropInInventory")));
-                    }
-                }.runTaskLater(plugin, 2);
-            }
-            if (event.getCurrentItem().getType().equals(Material.EXPERIENCE_BOTTLE)){
-                er.setGivePlayerXp(!plugin.RegionStorageFile.getConfig().getBoolean("regions." + AddOptions.string.get(p.getUniqueId()) + ".givePlayerXp"));
-                new BukkitRunnable(){
-                    @Override
-                    public void run(){
-                        event.getView().getTopInventory().setItem(6, i.givePlayerXp(plugin.RegionStorageFile.getConfig().getBoolean("regions." + AddOptions.string.get(p.getUniqueId()) + ".givePlayerXp")));
-                    }
-                }.runTaskLater(plugin, 2);
-            }
+            selectOption(p.getPlayer(), string.get(p.getUniqueId()),event.getCurrentItem().getType());
+        }
+    }
 
+    private void selectOption(Player player, String region, Material clicked){
+        EditRegion er = new EditRegion(plugin, region);
+        Items items = new Items();
+        switch (clicked){
+            case EXPERIENCE_BOTTLE:
+                er.setGivePlayerXp(!plugin.RegionStorageFile.getConfig().getBoolean("regions." + region + ".givePlayerXp"));
+                new BukkitRunnable(){
+                    @Override
+                    public void run(){
+                        player.getOpenInventory().getTopInventory().setItem(6, items.givePlayerXp(plugin.RegionStorageFile.getConfig().getBoolean("regions." + region + ".givePlayerXp")));
+                    }
+                }.runTaskLater(plugin, 2);
+                break;
+            case CHEST:
+                er.setDropInInventory(!plugin.RegionStorageFile.getConfig().getBoolean("regions." + region + ".dropInInventory"));
+                new BukkitRunnable(){
+                    @Override
+                    public void run(){
+                        player.getOpenInventory().getTopInventory().setItem(1, items.dropInInventory(plugin.RegionStorageFile.getConfig().getBoolean("regions." + region + ".dropInInventory")));
+                    }
+                }.runTaskLater(plugin, 2);
+                break;
+            case HOPPER:
+                er.setDropOnPlayer(!plugin.RegionStorageFile.getConfig().getBoolean("regions." + region + ".dropOnPlayer"));
+                new BukkitRunnable(){
+                    @Override
+                    public void run(){
+                        player.getOpenInventory().getTopInventory().setItem(4, items.dropOnPlayer(plugin.RegionStorageFile.getConfig().getBoolean("regions." + region + ".dropOnPlayer")));
+                    }
+                }.runTaskLater(plugin, 2);
+                break;
+            case CHICKEN_SPAWN_EGG:
+                addMobSpawn(player, region, !plugin.RegionStorageFile.getConfig().getBoolean("regions." + region + ".mobs-spawn"));
+                player.getOpenInventory().getTopInventory().setItem(2, items.canSpawn(region, plugin.RegionStorageFile.getConfig().getBoolean("regions." + region + ".mobs-spawn")));
+                break;
+            case DIAMOND_SWORD:
+                er.addPvp(player, !plugin.RegionStorageFile.getConfig().getBoolean("regions." + region + ".pvp"));
+                player.getOpenInventory().getTopInventory().setItem(3, items.canPvp(region, plugin.RegionStorageFile.getConfig().getBoolean("regions." + region + ".pvp")));
+                break;
+            case DIAMOND_PICKAXE:
+                player.openInventory(er.canBreakMenu());
+                break;
+            case BARRIER:
+                player.closeInventory();
+                string.remove(player.getUniqueId());
+                break;
         }
     }
     @EventHandler
@@ -162,6 +171,12 @@ public class AddOptions implements Listener{
                 }
                 return;
             }
+            if (event.isRightClick()){
+                ChanceEditor editor = new ChanceEditor(string.get(p.getUniqueId()),false, ChanceEditor.Type.REPLACE_WITH, matMap.get(p.getUniqueId()), event.getCurrentItem().getType());
+                editors.put(p.getUniqueId(),editor);
+                p.sendMessage(ChatColor.GOLD + "Type out a weight for material " + event.getCurrentItem().getType().name() + " in the replaceWith section");
+                p.closeInventory();
+            }
         }
         if (event.getView().getTitle().contains("Replenish As")){
             if (event.getCurrentItem() == null)
@@ -175,6 +190,12 @@ public class AddOptions implements Listener{
                     p.openInventory(er.canBreakMenu());
                 }
                 return;
+            }
+            if (event.isRightClick()){
+                ChanceEditor editor = new ChanceEditor(string.get(p.getUniqueId()),false, ChanceEditor.Type.REPLACE_AS, matMap.get(p.getUniqueId()), event.getCurrentItem().getType());
+                editors.put(p.getUniqueId(),editor);
+                p.sendMessage(ChatColor.GOLD + "Type out a weight for material " + event.getCurrentItem().getType().name() + " in the ReplaceAs section");
+                p.closeInventory();
             }
         }
         if (event.getView().getTitle().contains("Replenish Time")){
@@ -270,7 +291,7 @@ public class AddOptions implements Listener{
                 }
             }
             er.saveReplenishAs(list.toArray(new ItemStack[0]), matMap.get(p.getUniqueId()));
-            matMap.remove(p.getUniqueId());
+            if (!editors.containsKey(p.getUniqueId())) matMap.remove(p.getUniqueId());
         }
         if (event.getView().getTitle().contains("Will be replaced by:")){
             EditRegion er = new EditRegion(plugin, string.get(p.getUniqueId()));
@@ -285,7 +306,29 @@ public class AddOptions implements Listener{
             if (list.isEmpty())
                 list.add(new ItemStack(Material.AIR));
             er.saveReplaceWith(list.toArray(new ItemStack[0]), matMap.get(p.getUniqueId()));
-            matMap.remove(p.getUniqueId());
+            if (!editors.containsKey(p.getUniqueId())) matMap.remove(p.getUniqueId());
+        }
+    }
+
+    @EventHandler
+    public void sayWeight(AsyncPlayerChatEvent event){
+        Player player = event.getPlayer();
+        if (!editors.containsKey(player.getUniqueId())) return;
+        String msg = ChatColor.stripColor(event.getMessage());
+        int weight;
+        try {
+            weight = Integer.parseInt(msg);
+            ChanceEditor editor = editors.get(player.getUniqueId());
+            editor.writeWeight(weight);
+            EditRegion editRegion = new EditRegion(plugin,string.get(player.getUniqueId()));
+            Bukkit.getScheduler().runTaskLater(plugin,()->{
+                if(editor.type() == ChanceEditor.Type.REPLACE_AS) player.openInventory(editRegion.replenishAs(editor.key()));
+                else if (editor.type() == ChanceEditor.Type.REPLACE_WITH) player.openInventory(editRegion.replaceWithMenu(editor.key()));
+            },1);
+            plugin.RegionStorageFile.saveConfig();
+            editors.remove(player.getUniqueId());
+        }catch (Exception e){
+            player.sendMessage(ChatColor.RED + "You need to type a whole number integer for the weight!");
         }
     }
 

@@ -15,6 +15,7 @@ public class DynamicRegion extends Region {
     public HashMap<Location, Material> replaceQueue = new HashMap<>();
     public DynamicRegion(OreRegeneration plugin, String id) {
         super(plugin, id);
+        dynamic = true;
     }
 
     public int getReplenishRadius(Material key) {

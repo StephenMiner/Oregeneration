@@ -3,9 +3,12 @@ package me.stephenminer.oreRegeneration.DynamicRegion;
 import me.stephenminer.oreRegeneration.Items.Items;
 import me.stephenminer.oreRegeneration.OreRegeneration;
 import me.stephenminer.oreRegeneration.Regions.AddOptions;
+import me.stephenminer.oreRegeneration.Regions.ChanceEditor;
+import me.stephenminer.oreRegeneration.Regions.EditRegion;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.craftbukkit.libs.it.unimi.dsi.fastutil.Hash;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
@@ -17,6 +20,7 @@ import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -29,13 +33,16 @@ import java.util.UUID;
 
 public class DynamicOptions implements Listener {
 
-    private OreRegeneration plugin;
+    private final OreRegeneration plugin;
+    private HashMap<UUID, ChanceEditor> editors;
     public DynamicOptions(OreRegeneration plugin){
         this.plugin = plugin;
+        matMap = new HashMap<>();
+        editors = new HashMap<>();
     }
 
 
-    public HashMap<UUID, Material> matMap = new HashMap<UUID, Material>();
+    public HashMap<UUID, Material> matMap;
 
 
 
@@ -180,6 +187,12 @@ public class DynamicOptions implements Listener {
                 }
                 return;
             }
+            if (event.isRightClick()){
+                ChanceEditor editor = new ChanceEditor(AddOptions.string.get(p.getUniqueId()),true, ChanceEditor.Type.REPLACE_WITH, matMap.get(p.getUniqueId()), event.getCurrentItem().getType());
+                editors.put(p.getUniqueId(),editor);
+                p.sendMessage(ChatColor.GOLD + "Type out a weight for material " + event.getCurrentItem().getType().name() + " in the replaceWith section");
+                p.closeInventory();
+            }
         }
         if (event.getView().getTitle().contains("[dynamic] Replenish Time")){
             event.setCancelled(true);
@@ -281,6 +294,8 @@ public class DynamicOptions implements Listener {
     }
 
 
+
+
     public void saveMuhTime(Inventory inv, Player p, int increment){
         increment = increment * 20;
         Items items = new Items();
@@ -339,7 +354,7 @@ public class DynamicOptions implements Listener {
                 }
             }
             er.saveReplaceWith(list.toArray(new ItemStack[0]), matMap.get(p.getUniqueId()));
-            matMap.remove(p.getUniqueId());
+            if (!editors.containsKey(p.getUniqueId())) matMap.remove(p.getUniqueId());
         }
         if (event.getView().getTitle().contains("Will be replaced on:")){
             EditDynamic er = new EditDynamic(plugin, AddOptions.string.get(p.getUniqueId()));
@@ -354,6 +369,27 @@ public class DynamicOptions implements Listener {
             matMap.remove(p.getUniqueId());
         }
 
+    }
+
+    @EventHandler
+    public void sayWeight(AsyncPlayerChatEvent event){
+        Player player = event.getPlayer();
+        if (!editors.containsKey(player.getUniqueId())) return;
+        String msg = ChatColor.stripColor(event.getMessage());
+        int weight;
+        try {
+            weight = Integer.parseInt(msg);
+            ChanceEditor editor = editors.get(player.getUniqueId());
+            editor.writeWeight(weight);
+            EditDynamic editRegion = new EditDynamic(plugin,AddOptions.string.get(player.getUniqueId()));
+            Bukkit.getScheduler().runTaskLater(plugin,()->{
+                if (editor.type() == ChanceEditor.Type.REPLACE_WITH) player.openInventory(editRegion.replaceWithMenu(editor.key()));
+            },1);
+            editors.remove(player.getUniqueId());
+            plugin.DynamicRegionFile.saveConfig();
+        }catch (Exception e){
+            player.sendMessage(ChatColor.RED + "You need to type a whole number integer for the weight!");
+        }
     }
 
     private List<Material> cropItems(){

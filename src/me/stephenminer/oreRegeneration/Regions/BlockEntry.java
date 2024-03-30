@@ -9,8 +9,8 @@ public class BlockEntry {
     /**
      * Some integer between 0-1000
      */
-    private final int weight;
-    private final Material mat;
+    private int weight;
+    private Material mat;
 
 
     public BlockEntry(Material mat, int weight){
@@ -37,4 +37,7 @@ public class BlockEntry {
 
     public Material mat(){ return mat; }
     public int weight(){ return weight; }
+
+    public void setMat(Material mat){ this.mat = mat; }
+    public void setWeight(int weight){ this.weight = weight; }
 }
